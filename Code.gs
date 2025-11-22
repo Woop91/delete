@@ -259,7 +259,7 @@ function createGrievanceLog() {
 
 /* ===================== DASHBOARD - ONLY REAL DATA ===================== */
 function createMainDashboard() {
-  const ss = SpreadshgetApp.getActive();
+  const ss = SpreadsheetApp.getActive();
   let dashboard = ss.getSheetByName(SHEETS.DASHBOARD);
 
   if (!dashboard) {
