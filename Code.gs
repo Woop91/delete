@@ -1,5 +1,5 @@
 /****************************************************
- * UNION DASHBOARD - FIXED VERSION
+ * 509 DASHBOARD - FIXED VERSION
  * All issues addressed, real data only, 20k members + 5k grievances
  ****************************************************/
 
@@ -15,10 +15,10 @@ const SHEETS = {
 };
 
 /* ===================== ONE-CLICK SETUP ===================== */
-function CREATE_UNION_DASHBOARD() {
+function CREATE_509_DASHBOARD() {
   const ss = SpreadsheetApp.getActive();
 
-  SpreadsheetApp.getActive().toast("🚀 Creating Union Dashboard...", "Starting", -1);
+  SpreadsheetApp.getActive().toast("🚀 Creating 509 Dashboard...", "Starting", -1);
 
   try {
     createConfigTab();
@@ -269,7 +269,7 @@ function createMainDashboard() {
 
   // Title
   dashboard.getRange("A1:L2").merge()
-    .setValue("📊 UNION ORGANIZING DASHBOARD")
+    .setValue("📊 LOCAL 509 DASHBOARD")
     .setFontSize(18)
     .setFontWeight("bold")
     .setHorizontalAlignment("center")
@@ -640,7 +640,7 @@ function setupFormulasAndCalculations() {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
-  ui.createMenu("📊 Union Dashboard")
+  ui.createMenu("📊 509 Dashboard")
     .addItem("🔄 Refresh All", "refreshCalculations")
     .addSeparator()
     .addSubMenu(ui.createMenu("⚙️ Admin")
@@ -670,7 +670,7 @@ function goToDashboard() {
 
 function showHelp() {
   const helpText = `
-📊 UNION DASHBOARD
+📊 509 DASHBOARD
 
 SHEETS:
 • Config - Master dropdown lists

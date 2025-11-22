@@ -1,6 +1,6 @@
-# Union Organizing Dashboard - Google Apps Script
+# 509 Dashboard - Google Apps Script
 
-Complete union member database and grievance tracking system for Google Sheets.
+Complete union member database and grievance tracking system for Local 509.
 
 ## Features
 
@@ -19,7 +19,7 @@ Complete union member database and grievance tracking system for Google Sheets.
 4. Copy and paste the entire contents of `Code.gs`
 5. Save the project
 6. Refresh your Google Sheet
-7. A new menu **"📊 Union Dashboard"** will appear
+7. A new menu **"📊 509 Dashboard"** will appear
 8. Click **Admin > Seed 20k Members** and **Seed 5k Grievances**
 
 ## Sheet Structure
@@ -83,7 +83,7 @@ Generate realistic test data:
 - **20,000 Members**: Diverse names, locations, job titles, engagement history
 - **5,000 Grievances**: Linked to members, various statuses, realistic timelines
 
-Access via: **📊 Union Dashboard > Admin > Seed Data**
+Access via: **📊 509 Dashboard > Admin > Seed Data**
 
 ## Key Improvements
 
@@ -101,6 +101,7 @@ Access via: **📊 Union Dashboard > Admin > Seed Data**
 3. **Track Progress**: Deadlines calculate automatically
 4. **Monitor Dashboard**: Real-time metrics update automatically
 5. **Maintain Config**: Add new locations, stewards, etc. in Config tab
+6. **Main Function**: Run `CREATE_509_DASHBOARD()` to set up all sheets
 
 ## Notes
 
