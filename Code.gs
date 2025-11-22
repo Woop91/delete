@@ -388,6 +388,15 @@ function createMainDashboard() {
     .setFontWeight("bold")
     .setBackground("#F3F4F6");
 
+  // Formula to populate upcoming deadlines (open grievances with deadlines in next 14 days)
+  dashboard.getRange("A22").setFormula(
+    '=IFERROR(QUERY(\'Grievance Log\'!A:U, ' +
+    '"SELECT A, C, T, U, E ' +
+    'WHERE E = \'Open\' AND T IS NOT NULL AND T <= date \'"&TEXT(TODAY()+14,"yyyy-mm-dd")&"\' ' +
+    'ORDER BY T ASC ' +
+    'LIMIT 10", 0), "No upcoming deadlines")'
+  );
+
   dashboard.setTabColor("#7C3AED");
 }
 
@@ -407,18 +416,26 @@ function createAnalyticsDataSheet() {
   // Grievances by Status
   analytics.getRange("A3").setValue("Grievances by Status");
   analytics.getRange("A4:B4").setValues([["Status", "Count"]]).setFontWeight("bold");
+  analytics.getRange("A5").setFormula('=UNIQUE(FILTER(\'Grievance Log\'!E:E, \'Grievance Log\'!E:E<>"", \'Grievance Log\'!E:E<>"Status"))');
+  analytics.getRange("B5").setFormula('=ARRAYFORMULA(IF(A5:A<>"", COUNTIF(\'Grievance Log\'!E:E, A5:A), ""))');
 
   // Grievances by Unit
   analytics.getRange("D3").setValue("Grievances by Unit");
   analytics.getRange("D4:E4").setValues([["Unit", "Count"]]).setFontWeight("bold");
+  analytics.getRange("D5").setFormula('=UNIQUE(FILTER(\'Grievance Log\'!Y:Y, \'Grievance Log\'!Y:Y<>"", \'Grievance Log\'!Y:Y<>"Unit"))');
+  analytics.getRange("E5").setFormula('=ARRAYFORMULA(IF(D5:D<>"", COUNTIF(\'Grievance Log\'!Y:Y, D5:D), ""))');
 
   // Members by Location
   analytics.getRange("G3").setValue("Members by Location");
   analytics.getRange("G4:H4").setValues([["Location", "Count"]]).setFontWeight("bold");
+  analytics.getRange("G5").setFormula('=UNIQUE(FILTER(\'Member Directory\'!E:E, \'Member Directory\'!E:E<>"", \'Member Directory\'!E:E<>"Work Location (Site)"))');
+  analytics.getRange("H5").setFormula('=ARRAYFORMULA(IF(G5:G<>"", COUNTIF(\'Member Directory\'!E:E, G5:G), ""))');
 
   // Steward Workload
   analytics.getRange("J3").setValue("Steward Workload");
   analytics.getRange("J4:K4").setValues([["Steward", "Open Cases"]]).setFontWeight("bold");
+  analytics.getRange("J5").setFormula('=UNIQUE(FILTER(\'Grievance Log\'!AA:AA, \'Grievance Log\'!AA:AA<>"", \'Grievance Log\'!AA:AA<>"Assigned Steward (Name)"))');
+  analytics.getRange("K5").setFormula('=ARRAYFORMULA(IF(J5:J<>"", COUNTIFS(\'Grievance Log\'!AA:AA, J5:J, \'Grievance Log\'!E:E, "Open"), ""))');
 
   analytics.hideSheet();
 }
