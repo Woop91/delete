@@ -660,14 +660,49 @@ function onOpen() {
   ui.createMenu("📊 509 Dashboard")
     .addItem("🔄 Refresh All", "refreshCalculations")
     .addSeparator()
+    .addItem("🌐 View Web Dashboard", "openWebDashboard")
+    .addItem("📊 Dashboard Sheet", "goToDashboard")
+    .addSeparator()
     .addSubMenu(ui.createMenu("⚙️ Admin")
       .addItem("Seed 20k Members", "SEED_20K_MEMBERS")
       .addItem("Seed 5k Grievances", "SEED_5K_GRIEVANCES")
       .addItem("Clear All Data", "clearAllData"))
     .addSeparator()
-    .addItem("📊 Dashboard", "goToDashboard")
     .addItem("❓ Help", "showHelp")
     .addToUi();
+}
+
+function openWebDashboard() {
+  const url = ScriptApp.getService().getUrl();
+  const html = `
+    <html>
+      <head>
+        <base target="_blank">
+      </head>
+      <body>
+        <h3>509 Dashboard Web App</h3>
+        <p>Click the link below to open the web dashboard:</p>
+        <p><a href="${url}" target="_blank">${url}</a></p>
+        <p><strong>Note:</strong> You may need to deploy this as a web app first.</p>
+        <p><strong>Instructions:</strong></p>
+        <ol>
+          <li>Go to Extensions > Apps Script</li>
+          <li>Click "Deploy" > "New deployment"</li>
+          <li>Select "Web app" as deployment type</li>
+          <li>Set "Execute as" to "Me"</li>
+          <li>Set "Who has access" to your preference</li>
+          <li>Click "Deploy"</li>
+          <li>Copy the web app URL and open it</li>
+        </ol>
+      </body>
+    </html>
+  `;
+
+  const htmlOutput = HtmlService.createHtmlOutput(html)
+    .setWidth(500)
+    .setHeight(400);
+
+  SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Web Dashboard Access');
 }
 
 function refreshCalculations() {
@@ -899,4 +934,325 @@ function clearAllData() {
   }
 
   SpreadsheetApp.getActive().toast("✅ All data cleared", "Complete", 3);
+}
+
+/* ===================== WEB APP FUNCTIONALITY ===================== */
+
+/**
+ * Serves the HTML dashboard as a web app
+ */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Dashboard')
+    .setTitle('SEIU 509 Dashboard')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Main function to gather all dashboard data
+ * Called from the HTML dashboard via google.script.run
+ */
+function getDashboardData() {
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const memberDir = ss.getSheetByName(SHEETS.MEMBER_DIR);
+    const grievanceLog = ss.getSheetByName(SHEETS.GRIEVANCE_LOG);
+
+    // Get all data
+    const memberData = getMemberData(memberDir);
+    const grievanceData = getGrievanceData(grievanceLog);
+
+    // Calculate metrics
+    const executiveMetrics = calculateExecutiveMetrics(grievanceData);
+    const memberMetrics = calculateMemberMetrics(memberData);
+    const grievanceMetrics = calculateGrievanceMetrics(grievanceData);
+    const grievanceList = getTopPriorityGrievances(grievanceData, 10);
+    const stewardWorkload = calculateStewardWorkload(grievanceData);
+    const upcomingDeadlines = getUpcomingDeadlines(grievanceData, 14);
+
+    return {
+      executive: executiveMetrics,
+      members: memberMetrics,
+      grievances: grievanceMetrics,
+      grievanceList: grievanceList,
+      stewardWorkload: stewardWorkload,
+      upcomingDeadlines: upcomingDeadlines,
+      lastUpdated: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error in getDashboardData:', error);
+    throw new Error('Failed to load dashboard data: ' + error.toString());
+  }
+}
+
+/**
+ * Get all member data from Member Directory
+ */
+function getMemberData(sheet) {
+  if (sheet.getLastRow() <= 1) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 31).getValues();
+  return data.filter(row => row[0]); // Filter out empty rows
+}
+
+/**
+ * Get all grievance data from Grievance Log
+ */
+function getGrievanceData(sheet) {
+  if (sheet.getLastRow() <= 1) return [];
+
+  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 28).getValues();
+  return data.filter(row => row[0]); // Filter out empty rows
+}
+
+/**
+ * Calculate executive-level metrics
+ */
+function calculateExecutiveMetrics(grievances) {
+  const openGrievances = grievances.filter(g => g[4] === 'Open');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let overdue = 0;
+  let dueThisWeek = 0;
+  let escalations = 0;
+  let arbitrations = 0;
+
+  openGrievances.forEach(g => {
+    const nextActionDue = g[19]; // Column T - Next Action Due
+    const currentStep = g[5]; // Column F - Current Step
+    const daysToDeadline = g[20]; // Column U - Days to Deadline
+
+    // Count overdue
+    if (daysToDeadline < 0) {
+      overdue++;
+    }
+
+    // Count due this week
+    if (daysToDeadline >= 0 && daysToDeadline <= 7) {
+      dueThisWeek++;
+    }
+
+    // Count escalations (Step III or higher)
+    if (currentStep && (currentStep.includes('III') || currentStep === 'Mediation' || currentStep === 'Arbitration')) {
+      escalations++;
+      if (currentStep === 'Arbitration') {
+        arbitrations++;
+      }
+    }
+  });
+
+  // Calculate win rate (settled + closed vs total resolved)
+  const resolved = grievances.filter(g => ['Settled', 'Closed', 'Withdrawn'].includes(g[4]));
+  const won = grievances.filter(g => g[4] === 'Settled').length;
+  const winRate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
+
+  // Calculate average days to close for resolved cases
+  let totalDays = 0;
+  let countDays = 0;
+  resolved.forEach(g => {
+    const daysOpen = g[18]; // Column S - Days Open
+    if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
+      totalDays += daysOpen;
+      countDays++;
+    }
+  });
+  const avgDaysToClose = countDays > 0 ? Math.round(totalDays / countDays) : 0;
+
+  return {
+    activeCases: openGrievances.length,
+    overdue: overdue,
+    dueThisWeek: dueThisWeek,
+    highRisk: overdue + escalations,
+    winRate: winRate,
+    avgDaysToClose: avgDaysToClose,
+    escalations: escalations,
+    arbitrations: arbitrations
+  };
+}
+
+/**
+ * Calculate member-related metrics
+ */
+function calculateMemberMetrics(members) {
+  const stewards = members.filter(m => m[9] === 'Yes').length; // Column J - Is Steward
+
+  // Calculate engagement (members with recent contact)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  let recentContacts = 0;
+  members.forEach(m => {
+    const lastVirtual = m[13]; // Column N - Last Virtual Mtg
+    const lastInPerson = m[14]; // Column O - Last In-Person Mtg
+    const lastStewardContact = m[28]; // Column AC - Most Recent Steward Contact
+
+    if ((lastVirtual && lastVirtual > thirtyDaysAgo) ||
+        (lastInPerson && lastInPerson > thirtyDaysAgo) ||
+        (lastStewardContact && lastStewardContact > thirtyDaysAgo)) {
+      recentContacts++;
+    }
+  });
+
+  const engagementRate = members.length > 0 ? Math.round((recentContacts / members.length) * 100) : 0;
+
+  return {
+    total: members.length,
+    stewards: stewards,
+    engagementRate: engagementRate,
+    recentContacts: recentContacts
+  };
+}
+
+/**
+ * Calculate grievance-related metrics
+ */
+function calculateGrievanceMetrics(grievances) {
+  const open = grievances.filter(g => g[4] === 'Open').length;
+  const pendingInfo = grievances.filter(g => g[4] === 'Pending Info').length;
+
+  // Settled this month
+  const firstOfMonth = new Date();
+  firstOfMonth.setDate(1);
+  firstOfMonth.setHours(0, 0, 0, 0);
+
+  const settledThisMonth = grievances.filter(g => {
+    return g[4] === 'Settled' && g[17] && g[17] >= firstOfMonth; // Column R - Date Closed
+  }).length;
+
+  // Average days open for open grievances
+  const openGrievances = grievances.filter(g => g[4] === 'Open');
+  let totalDays = 0;
+  let countDays = 0;
+
+  openGrievances.forEach(g => {
+    const daysOpen = g[18]; // Column S - Days Open
+    if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
+      totalDays += daysOpen;
+      countDays++;
+    }
+  });
+
+  const avgDaysOpen = countDays > 0 ? Math.round(totalDays / countDays) : 0;
+
+  return {
+    open: open,
+    pendingInfo: pendingInfo,
+    settledThisMonth: settledThisMonth,
+    avgDaysOpen: avgDaysOpen
+  };
+}
+
+/**
+ * Get top priority grievances (sorted by urgency)
+ */
+function getTopPriorityGrievances(grievances, limit = 10) {
+  const openGrievances = grievances.filter(g => g[4] === 'Open');
+
+  // Sort by days to deadline (ascending, so overdue comes first)
+  const sorted = openGrievances.sort((a, b) => {
+    const daysA = typeof a[20] === 'number' ? a[20] : 999;
+    const daysB = typeof b[20] === 'number' ? b[20] : 999;
+    return daysA - daysB;
+  });
+
+  // Return top N
+  return sorted.slice(0, limit).map(g => ({
+    id: g[0],                    // Grievance ID
+    member: g[2] + ' ' + g[3],   // First + Last Name
+    issue: g[22] || 'N/A',       // Issue Category
+    step: g[5] || 'N/A',         // Current Step
+    deadline: g[19] ? formatDate(g[19]) : 'N/A', // Next Action Due
+    daysToDeadline: typeof g[20] === 'number' ? g[20] : 0 // Days to Deadline
+  }));
+}
+
+/**
+ * Calculate steward workload distribution
+ */
+function calculateStewardWorkload(grievances) {
+  const openGrievances = grievances.filter(g => g[4] === 'Open');
+  const workload = {};
+
+  // Count cases per steward
+  openGrievances.forEach(g => {
+    const steward = g[26] || 'Unassigned'; // Column AA - Assigned Steward
+    if (!workload[steward]) {
+      workload[steward] = {
+        cases: 0,
+        totalDays: 0,
+        count: 0
+      };
+    }
+    workload[steward].cases++;
+
+    const daysOpen = g[18]; // Days Open
+    if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
+      workload[steward].totalDays += daysOpen;
+      workload[steward].count++;
+    }
+  });
+
+  // Convert to array and calculate averages
+  return Object.keys(workload).map(name => ({
+    name: name,
+    cases: workload[name].cases,
+    avgDays: workload[name].count > 0 ?
+      Math.round(workload[name].totalDays / workload[name].count) : 0
+  })).sort((a, b) => b.cases - a.cases); // Sort by case count descending
+}
+
+/**
+ * Get upcoming deadlines within specified days
+ */
+function getUpcomingDeadlines(grievances, daysAhead = 14) {
+  const openGrievances = grievances.filter(g => g[4] === 'Open');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcoming = openGrievances.filter(g => {
+    const daysToDeadline = g[20]; // Days to Deadline
+    return typeof daysToDeadline === 'number' && daysToDeadline >= 0 && daysToDeadline <= daysAhead;
+  });
+
+  // Sort by days left
+  upcoming.sort((a, b) => a[20] - b[20]);
+
+  return upcoming.map(g => ({
+    grievanceId: g[0],           // Grievance ID
+    member: g[2] + ' ' + g[3],   // First + Last Name
+    action: getNextActionType(g[5], g[19]), // What action is due
+    deadline: g[19] ? formatDate(g[19]) : 'N/A',
+    daysLeft: g[20]
+  }));
+}
+
+/**
+ * Determine what type of action is coming up
+ */
+function getNextActionType(currentStep, nextActionDate) {
+  if (!currentStep) return 'Action Required';
+
+  if (currentStep === 'Informal') return 'File Step I';
+  if (currentStep === 'Step I') return 'Step I Decision Due';
+  if (currentStep === 'Step II') return 'Step II Decision Due';
+  if (currentStep === 'Step III') return 'Step III Decision Due';
+  if (currentStep === 'Mediation') return 'Mediation Session';
+  if (currentStep === 'Arbitration') return 'Arbitration Hearing';
+
+  return 'Next Action';
+}
+
+/**
+ * Format date to MM/DD/YYYY
+ */
+function formatDate(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const year = d.getFullYear();
+
+  return `${month}/${day}/${year}`;
 }

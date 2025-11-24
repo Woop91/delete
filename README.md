@@ -1,12 +1,14 @@
-# 509 Dashboard - Google Apps Script
+# 509 Dashboard - Google Apps Script + Web Dashboard
 
 Complete union member database and grievance tracking system for Local 509.
 
 ## 📋 Table of Contents
 - [Overview](#overview)
+- [🆕 Web Dashboard](#-web-dashboard)
 - [How It Works](#how-it-works)
 - [Features](#features)
 - [Setup Instructions](#setup-instructions)
+- [Web Dashboard Deployment](#web-dashboard-deployment)
 - [Architecture](#architecture)
 - [Detailed Features](#detailed-features)
 - [Usage Examples](#usage-examples)
@@ -17,9 +19,50 @@ Complete union member database and grievance tracking system for Local 509.
 The 509 Dashboard is a comprehensive Google Sheets-based system for managing union member data and tracking grievances. Built with Google Apps Script, it provides automated deadline calculations, real-time analytics, and centralized data management—all without requiring external databases or complex infrastructure.
 
 **Built for**: Local 509 union organizers, stewards, and administrators
-**Platform**: Google Sheets + Google Apps Script
+**Platform**: Google Sheets + Google Apps Script + Web Dashboard
 **Data Capacity**: Tested with 20,000 members and 5,000 grievances
 **Key Principle**: All metrics derived from real data—no simulated or fake statistics
+
+## 🆕 Web Dashboard
+
+The 509 Dashboard now includes a **terminal-style web interface** that provides real-time visibility into your union operations:
+
+### Dashboard Features
+
+**Executive Overview**
+- Total active caseload with high-priority flagging
+- Deadline compliance tracking (overdue and due this week)
+- Win rate statistics and average days to resolution
+- Escalation watch for Step III+ cases and arbitrations
+
+**Live Metrics**
+- Member count and steward statistics
+- Open grievances by status
+- Monthly settlement tracking
+- Member engagement rates
+
+**Active Grievance Log**
+- Top 10 priority cases sorted by urgency
+- Real-time deadline tracking with color-coded warnings
+- Member, issue, and steward assignment visibility
+
+**Steward Workload Distribution**
+- Visual caseload balancing across stewards
+- Average resolution time per steward
+- Overload detection (>7 cases flagged)
+
+**Critical Deadlines**
+- Next 14 days of upcoming actions
+- Specific action type identification (filing, decisions, etc.)
+- Days remaining countdown
+
+### How to Access
+
+1. Deploy the web app from Apps Script (see [Web Dashboard Deployment](#web-dashboard-deployment))
+2. Click **📊 509 Dashboard > View Web Dashboard** from Google Sheets menu
+3. Or visit the web app URL directly
+
+**See DEPLOYMENT_GUIDE.md for complete setup instructions**
 
 ## 🔧 How It Works
 
@@ -66,8 +109,12 @@ Dashboard (Real-time metrics and visualizations)
 ✅ **Custom Menu** - Easy access to all admin functions
 ✅ **Member Satisfaction Tracking** - Survey data with calculated averages
 ✅ **Feedback System** - Track system improvements and feature requests
+✅ **🆕 Web Dashboard** - Terminal-style web interface with real-time metrics
+✅ **🆕 REST API** - Google Apps Script backend serves live data to dashboard
 
 ## Setup Instructions
+
+### Quick Setup (Sheets Only)
 
 1. Create a new Google Sheet
 2. Go to **Extensions > Apps Script**
@@ -77,6 +124,73 @@ Dashboard (Real-time metrics and visualizations)
 6. Refresh your Google Sheet
 7. A new menu **"📊 509 Dashboard"** will appear
 8. Click **Admin > Seed 20k Members** and **Seed 5k Grievances**
+
+### Full Setup (Sheets + Web Dashboard)
+
+See **DEPLOYMENT_GUIDE.md** for complete step-by-step instructions.
+
+## Web Dashboard Deployment
+
+To deploy the web-based dashboard interface:
+
+### Quick Steps
+
+1. In Apps Script editor, create a new HTML file named `Dashboard`
+2. Copy the contents of `Dashboard.html` into it
+3. Save all files
+4. Click **Deploy > New deployment**
+5. Select **Web app** as the deployment type
+6. Set **Execute as**: "Me"
+7. Set **Who has access**: "Anyone with Google account" (recommended)
+8. Click **Deploy** and authorize
+9. Copy the web app URL
+10. Access dashboard via **📊 509 Dashboard > View Web Dashboard** menu
+
+### Detailed Instructions
+
+For complete deployment instructions including:
+- Authorization setup
+- Security configuration
+- Troubleshooting
+- Production deployment
+
+**See DEPLOYMENT_GUIDE.md**
+
+### Web Dashboard Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│         User's Browser                      │
+│  ┌─────────────────────────────────────┐   │
+│  │  Dashboard.html                     │   │
+│  │  - Terminal-style UI                │   │
+│  │  - Real-time metrics                │   │
+│  │  - Auto-refresh                     │   │
+│  └─────────────────────────────────────┘   │
+└──────────────────┬──────────────────────────┘
+                   │ google.script.run.getDashboardData()
+                   ↓
+┌─────────────────────────────────────────────┐
+│    Google Apps Script (Code.gs)             │
+│  ┌─────────────────────────────────────┐   │
+│  │  Web App Functions                  │   │
+│  │  - doGet() - Serves HTML            │   │
+│  │  - getDashboardData()               │   │
+│  │  - Calculate metrics                │   │
+│  │  - Format responses                 │   │
+│  └─────────────────────────────────────┘   │
+└──────────────────┬──────────────────────────┘
+                   │ SpreadsheetApp API
+                   ↓
+┌─────────────────────────────────────────────┐
+│         Google Sheets                       │
+│  ┌───────────────────────────────────┐     │
+│  │  Member Directory (20k rows)      │     │
+│  │  Grievance Log (5k rows)          │     │
+│  │  Config, Dashboard, Analytics     │     │
+│  └───────────────────────────────────┘     │
+└─────────────────────────────────────────────┘
+```
 
 ## 🏗️ Architecture
 

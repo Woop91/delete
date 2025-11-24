@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEIU 509 Unified Ops Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Terminal Theme */
+        body {
+            background-color: #000000;
+            color: #00FF00;
+            font-family: 'Consolas', 'Courier New', monospace;
+            padding: 10px;
+        }
+        .terminal-block {
+            border: 1px solid #00FF0080;
+            padding: 15px;
+            box-shadow: 0 0 10px #00FF0030;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .header-bar {
+            color: #FF00FF;
+            border-bottom: 1px solid #FF00FF80;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        .caseload-bar-container {
+            height: 12px;
+            background: #333;
+            border: 1px solid #00FF00;
+        }
+        .caseload-bar {
+            height: 100%;
+            transition: width 0.5s;
+        }
+        .process-row:nth-child(even) {
+            background-color: #001100;
+        }
+        .process-row:hover {
+            background-color: #003300;
+            cursor: pointer;
+        }
+        .text-red-term { color: #FF0000; }
+        .text-yellow-term { color: #FFFF00; }
+        .text-green-term { color: #00FF00; }
+        .text-cyan-term { color: #00FFFF; }
+        .value-big { font-size: 2rem; font-weight: bold; margin-bottom: 5px; }
+        .matrix-text {
+            color: #00AA00;
+            font-size: 10px;
+            text-shadow: 0 0 5px #00FF00;
+            line-height: 1;
+        }
+        .btn-control {
+            background-color: #008080;
+            color: black;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-control:hover {
+            background-color: #00FFFF;
+        }
+        .loading-spinner {
+            border: 3px solid #00FF0030;
+            border-top: 3px solid #00FF00;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Title -->
+    <div class="text-center text-4xl mb-6 header-bar">
+        SEIU 509 :: COMPREHENSIVE ACTION DASHBOARD :: <span id="current-time"></span>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="terminal-block">
+        <div class="loading-spinner"></div>
+        <div class="text-center text-cyan-term">Loading Dashboard Data from Google Sheets...</div>
+    </div>
+
+    <!-- Dashboard Content (Hidden until loaded) -->
+    <div id="dashboard-content" style="display: none;">
+
+    <!-- SECTION 1: EXECUTIVE STATUS & DEADLINES -->
+    <div class="terminal-block">
+        <div class="header-bar text-xl">
+            <span class="text-cyan-term">[STATUS]</span> EXECUTIVE OVERVIEW & ALERTS
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">TOTAL ACTIVE CASELOAD:</span>
+                <div class="value-big text-red-term" id="active-cases">--</div>
+                <div class="matrix-text">High-Priority: <span id="high-risk-count">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">DEADLINE COMPLIANCE:</span>
+                <div class="value-big text-red-term" id="overdue-count">--</div>
+                <div class="matrix-text text-yellow-term">Due This Week: <span id="due-week-count">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">RESOLUTIONS WIN RATE (YTD):</span>
+                <div class="value-big text-green-term" id="win-rate">--</div>
+                <div class="matrix-text">Avg Days to Close: <span id="avg-days">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">ESCALATION WATCH (III+):</span>
+                <div class="value-big text-yellow-term" id="escalation-count">--</div>
+                <div class="matrix-text text-red-term">Arbitrations Pending: <span id="arbitrations">--</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 2: MEMBER & GRIEVANCE METRICS -->
+    <div class="terminal-block">
+        <div class="header-bar text-xl">
+            <span class="text-cyan-term">[METRICS]</span> MEMBER & GRIEVANCE STATISTICS
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">TOTAL MEMBERS:</span>
+                <div class="value-big text-green-term" id="total-members">--</div>
+                <div class="matrix-text">Active Stewards: <span id="steward-count">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">OPEN GRIEVANCES:</span>
+                <div class="value-big text-red-term" id="open-grievances">--</div>
+                <div class="matrix-text">Pending Info: <span id="pending-info">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">SETTLED (THIS MONTH):</span>
+                <div class="value-big text-green-term" id="settled-month">--</div>
+                <div class="matrix-text">Avg Days Open: <span id="avg-days-open">--</span></div>
+            </div>
+
+            <div class="p-2 border border-gray-700">
+                <span class="text-cyan-term block">ENGAGEMENT RATE:</span>
+                <div class="value-big text-cyan-term" id="engagement-rate">--</div>
+                <div class="matrix-text">Last 30 Days Contacts: <span id="recent-contacts">--</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 3: ACTIVE GRIEVANCE LOG -->
+    <div class="terminal-block">
+        <div class="header-bar text-xl">
+            <span class="text-cyan-term">[ACTION]</span> ACTIVE GRIEVANCE LOG :: Top Priority List
+        </div>
+        <div class="grid grid-cols-12 text-sm font-bold border-b border-gray-700 pb-1 text-cyan-term">
+            <span class="col-span-2">GRIEVANCE ID</span>
+            <span class="col-span-2">MEMBER</span>
+            <span class="col-span-2">ISSUE</span>
+            <span class="col-span-2">STEP</span>
+            <span class="col-span-2">DEADLINE</span>
+            <span class="col-span-2 text-right">DAYS TO DUE</span>
+        </div>
+        <div id="grievance-list" class="text-sm mt-1">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- SECTION 4: STEWARD WORKLOAD -->
+    <div class="terminal-block">
+        <div class="header-bar text-xl">
+            <span class="text-cyan-term">[WORKLOAD]</span> STEWARD CASELOAD DISTRIBUTION
+        </div>
+        <div id="steward-workload" class="text-sm">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- SECTION 5: UPCOMING DEADLINES -->
+    <div class="terminal-block">
+        <div class="header-bar text-xl">
+            <span class="text-cyan-term">[DEADLINES]</span> CRITICAL UPCOMING DEADLINES (Next 14 Days)
+        </div>
+        <div id="upcoming-deadlines" class="text-sm">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    </div><!-- End dashboard-content -->
+
+    <script>
+        // Global data store
+        let dashboardData = {};
+
+        // Update time display
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('en-US', {hour12: false});
+        }
+
+        // Load data from Google Sheets backend
+        function loadDashboardData() {
+            // Call the Google Apps Script function to get data
+            google.script.run
+                .withSuccessHandler(onDataLoaded)
+                .withFailureHandler(onDataLoadError)
+                .getDashboardData();
+        }
+
+        // Handle successful data load
+        function onDataLoaded(data) {
+            console.log('Dashboard data loaded:', data);
+            dashboardData = data;
+
+            // Hide loading indicator
+            document.getElementById('loading-indicator').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+
+            // Render all sections
+            renderExecutiveMetrics(data);
+            renderMemberMetrics(data);
+            renderGrievanceList(data);
+            renderStewardWorkload(data);
+            renderUpcomingDeadlines(data);
+
+            // Start time update interval
+            setInterval(updateTime, 1000);
+            updateTime();
+        }
+
+        // Handle data load error
+        function onDataLoadError(error) {
+            console.error('Error loading dashboard data:', error);
+            document.getElementById('loading-indicator').innerHTML = `
+                <div class="text-center text-red-term">
+                    <p class="text-2xl mb-4">ERROR LOADING DASHBOARD DATA</p>
+                    <p>${error.message || 'Unknown error occurred'}</p>
+                    <button class="btn-control mt-4" onclick="location.reload()">RETRY</button>
+                </div>
+            `;
+        }
+
+        // Render executive metrics
+        function renderExecutiveMetrics(data) {
+            document.getElementById('active-cases').textContent = data.executive.activeCases.toLocaleString();
+            document.getElementById('high-risk-count').textContent = data.executive.highRisk;
+            document.getElementById('overdue-count').textContent = data.executive.overdue;
+            document.getElementById('due-week-count').textContent = data.executive.dueThisWeek;
+            document.getElementById('win-rate').textContent = data.executive.winRate + '%';
+            document.getElementById('avg-days').textContent = data.executive.avgDaysToClose + 'd';
+            document.getElementById('escalation-count').textContent = data.executive.escalations;
+            document.getElementById('arbitrations').textContent = data.executive.arbitrations;
+        }
+
+        // Render member metrics
+        function renderMemberMetrics(data) {
+            document.getElementById('total-members').textContent = data.members.total.toLocaleString();
+            document.getElementById('steward-count').textContent = data.members.stewards;
+            document.getElementById('open-grievances').textContent = data.grievances.open;
+            document.getElementById('pending-info').textContent = data.grievances.pendingInfo;
+            document.getElementById('settled-month').textContent = data.grievances.settledThisMonth;
+            document.getElementById('avg-days-open').textContent = data.grievances.avgDaysOpen + 'd';
+            document.getElementById('engagement-rate').textContent = data.members.engagementRate + '%';
+            document.getElementById('recent-contacts').textContent = data.members.recentContacts;
+        }
+
+        // Render grievance list
+        function renderGrievanceList(data) {
+            const container = document.getElementById('grievance-list');
+            if (!data.grievanceList || data.grievanceList.length === 0) {
+                container.innerHTML = '<div class="text-center text-yellow-term py-4">No active grievances found</div>';
+                return;
+            }
+
+            container.innerHTML = data.grievanceList.map(g => {
+                const daysClass = g.daysToDeadline < 0 ? 'text-red-term' :
+                                 g.daysToDeadline < 7 ? 'text-yellow-term' : 'text-green-term';
+                const daysText = g.daysToDeadline < 0 ? `${Math.abs(g.daysToDeadline)} OVERDUE` : `${g.daysToDeadline}`;
+
+                return `
+                    <div class="process-row grid grid-cols-12 py-1 text-xs">
+                        <span class="col-span-2 text-cyan-term">${g.id}</span>
+                        <span class="col-span-2 text-green-term">${g.member}</span>
+                        <span class="col-span-2">${g.issue}</span>
+                        <span class="col-span-2 text-yellow-term">${g.step}</span>
+                        <span class="col-span-2">${g.deadline}</span>
+                        <span class="col-span-2 ${daysClass} text-right">${daysText}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render steward workload
+        function renderStewardWorkload(data) {
+            const container = document.getElementById('steward-workload');
+            if (!data.stewardWorkload || data.stewardWorkload.length === 0) {
+                container.innerHTML = '<div class="text-center text-yellow-term py-4">No steward data available</div>';
+                return;
+            }
+
+            const maxCases = Math.max(...data.stewardWorkload.map(s => s.cases));
+
+            container.innerHTML = data.stewardWorkload.map(s => {
+                const width = (s.cases / maxCases) * 100;
+                const colorClass = s.cases > 7 ? 'bg-red-600' : s.cases > 5 ? 'bg-yellow-500' : 'bg-green-600';
+
+                return `
+                    <div class="mb-2">
+                        <div class="grid grid-cols-12 text-xs mb-1">
+                            <span class="col-span-4 text-cyan-term">${s.name}</span>
+                            <span class="col-span-2 text-yellow-term">${s.cases} cases</span>
+                            <span class="col-span-6 text-right text-green-term">Avg Resolution: ${s.avgDays}d</span>
+                        </div>
+                        <div class="caseload-bar-container">
+                            <div class="caseload-bar ${colorClass}" style="width: ${width}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render upcoming deadlines
+        function renderUpcomingDeadlines(data) {
+            const container = document.getElementById('upcoming-deadlines');
+            if (!data.upcomingDeadlines || data.upcomingDeadlines.length === 0) {
+                container.innerHTML = '<div class="text-center text-green-term py-4">No upcoming deadlines in next 14 days</div>';
+                return;
+            }
+
+            container.innerHTML = data.upcomingDeadlines.map(d => {
+                const urgencyClass = d.daysLeft < 3 ? 'text-red-term' : d.daysLeft < 7 ? 'text-yellow-term' : 'text-green-term';
+
+                return `
+                    <div class="process-row grid grid-cols-12 py-1 text-xs">
+                        <span class="col-span-2 text-cyan-term">${d.grievanceId}</span>
+                        <span class="col-span-3 text-green-term">${d.member}</span>
+                        <span class="col-span-3">${d.action}</span>
+                        <span class="col-span-2">${d.deadline}</span>
+                        <span class="col-span-2 ${urgencyClass} text-right">${d.daysLeft}d</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize dashboard on load
+        window.onload = function() {
+            loadDashboardData();
+        };
+    </script>
+
+</body>
+</html>
