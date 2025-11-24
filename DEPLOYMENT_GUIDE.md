@@ -1,12 +1,14 @@
-# 509 Dashboard Deployment Guide
+# 509 Dashboard Deployment Guide - Integrated System
 
 ## Overview
 
-This guide will help you deploy the SEIU Local 509 Dashboard system, which includes:
-- Google Sheets backend with Member Directory and Grievance tracking
-- Google Apps Script automation and data processing
-- Web-based terminal-style dashboard interface
-- Real-time data synchronization
+This guide will help you deploy the **SEIU Local 509 Dashboard** - a unified system combining:
+- **Comprehensive Google Sheets backend** (Member Directory + Grievance tracking with 43 & 32 columns)
+- **Google Apps Script automation** with dynamic column mapping and resilience features
+- **Web-based terminal-style dashboard** interface for real-time monitoring
+- **Production-ready features**: CBA compliance, deadline tracking, priority sorting, data seeding
+
+**NEW**: This guide covers the integrated system that combines the comprehensive 509 Dashboard backend with the terminal-style web interface.
 
 ## Table of Contents
 
@@ -34,11 +36,22 @@ This guide will help you deploy the SEIU Local 509 Dashboard system, which inclu
 
 ### Step 3: Add the Code
 
-1. Delete any existing code in the editor
-2. Copy the entire contents of `Code.gs` from this repository
-3. Paste it into the Apps Script editor
-4. Click **File > Save** (or Ctrl+S / Cmd+S)
-5. Name the project "509 Dashboard System"
+**IMPORTANT**: You must integrate the comprehensive code with web dashboard functions.
+
+**Option A: Use Integration Guide (Recommended)**
+1. Follow the step-by-step instructions in **INTEGRATION_GUIDE.md**
+2. This merges the comprehensive backend with web dashboard API functions
+3. Ensures dynamic column mapping works correctly
+
+**Option B: Quick Manual Integration**
+1. Copy your comprehensive 509 Dashboard code (the large file you provided)
+2. Paste it into the Apps Script editor
+3. Scroll to the bottom and add the web app functions from INTEGRATION_GUIDE.md
+4. Update the `onOpen()` function to include web dashboard menu items
+5. Click **File > Save** (or Ctrl+S / Cmd+S)
+6. Name the project "509 Dashboard System"
+
+**Critical**: The web dashboard requires the integrated code with dynamic column mapping. Do NOT use the simple Code.gs file.
 
 ### Step 4: Add the Dashboard HTML
 
