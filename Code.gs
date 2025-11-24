@@ -936,6 +936,90 @@ function clearAllData() {
   SpreadsheetApp.getActive().toast("✅ All data cleared", "Complete", 3);
 }
 
+/* ===================== DYNAMIC COLUMN MAPPING ===================== */
+
+/**
+ * Column mapping cache to avoid repeated lookups
+ * Cleared when column structure changes
+ */
+const COLUMN_CACHE = {
+  memberCols: null,
+  grievanceCols: null
+};
+
+/**
+ * Build column map from header row
+ * Maps header names to 0-based column indices
+ */
+function buildColumnMap(headers) {
+  const map = {};
+  headers.forEach((header, index) => {
+    if (header) {
+      // Normalize header name to property key
+      const key = header.toString()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+      map[key] = index;
+    }
+  });
+  return map;
+}
+
+/**
+ * Initialize Member Directory column mapping
+ * Returns object with column indices for all Member Directory fields
+ */
+function ensureMemberColInitialized() {
+  if (COLUMN_CACHE.memberCols) {
+    return COLUMN_CACHE.memberCols;
+  }
+
+  const ss = SpreadsheetApp.getActive();
+  const memberDir = ss.getSheetByName(SHEETS.MEMBER_DIR);
+
+  if (!memberDir || memberDir.getLastRow() === 0) {
+    throw new Error('Member Directory sheet not found or empty');
+  }
+
+  const headers = memberDir.getRange(1, 1, 1, memberDir.getLastColumn()).getValues()[0];
+  COLUMN_CACHE.memberCols = buildColumnMap(headers);
+
+  return COLUMN_CACHE.memberCols;
+}
+
+/**
+ * Initialize Grievance Log column mapping
+ * Returns object with column indices for all Grievance Log fields
+ */
+function ensureGrievanceColInitialized() {
+  if (COLUMN_CACHE.grievanceCols) {
+    return COLUMN_CACHE.grievanceCols;
+  }
+
+  const ss = SpreadsheetApp.getActive();
+  const grievanceLog = ss.getSheetByName(SHEETS.GRIEVANCE_LOG);
+
+  if (!grievanceLog || grievanceLog.getLastRow() === 0) {
+    throw new Error('Grievance Log sheet not found or empty');
+  }
+
+  const headers = grievanceLog.getRange(1, 1, 1, grievanceLog.getLastColumn()).getValues()[0];
+  COLUMN_CACHE.grievanceCols = buildColumnMap(headers);
+
+  return COLUMN_CACHE.grievanceCols;
+}
+
+/**
+ * Clear column mapping cache
+ * Call this after modifying sheet structure
+ */
+function invalidateColumnMapping() {
+  COLUMN_CACHE.memberCols = null;
+  COLUMN_CACHE.grievanceCols = null;
+}
+
 /* ===================== WEB APP FUNCTIONALITY ===================== */
 
 /**
@@ -950,6 +1034,7 @@ function doGet() {
 /**
  * Main function to gather all dashboard data
  * Called from the HTML dashboard via google.script.run
+ * Uses dynamic column mapping for resilience
  */
 function getDashboardData() {
   try {
@@ -957,17 +1042,25 @@ function getDashboardData() {
     const memberDir = ss.getSheetByName(SHEETS.MEMBER_DIR);
     const grievanceLog = ss.getSheetByName(SHEETS.GRIEVANCE_LOG);
 
-    // Get all data
-    const memberData = getMemberData(memberDir);
-    const grievanceData = getGrievanceData(grievanceLog);
+    if (!memberDir || !grievanceLog) {
+      throw new Error('Required sheets not found');
+    }
 
-    // Calculate metrics
-    const executiveMetrics = calculateExecutiveMetrics(grievanceData);
-    const memberMetrics = calculateMemberMetrics(memberData);
-    const grievanceMetrics = calculateGrievanceMetrics(grievanceData);
-    const grievanceList = getTopPriorityGrievances(grievanceData, 10);
-    const stewardWorkload = calculateStewardWorkload(grievanceData);
-    const upcomingDeadlines = getUpcomingDeadlines(grievanceData, 14);
+    // Initialize dynamic column mappings
+    const M_COL = ensureMemberColInitialized();
+    const G_COL = ensureGrievanceColInitialized();
+
+    // Get all data using dynamic columns
+    const memberData = getMemberData(memberDir, M_COL);
+    const grievanceData = getGrievanceData(grievanceLog, G_COL);
+
+    // Calculate metrics using dynamic columns
+    const executiveMetrics = calculateExecutiveMetrics(grievanceData, G_COL);
+    const memberMetrics = calculateMemberMetrics(memberData, M_COL);
+    const grievanceMetrics = calculateGrievanceMetrics(grievanceData, G_COL);
+    const grievanceList = getTopPriorityGrievances(grievanceData, G_COL, 10);
+    const stewardWorkload = calculateStewardWorkload(grievanceData, G_COL);
+    const upcomingDeadlines = getUpcomingDeadlines(grievanceData, G_COL, 14);
 
     return {
       executive: executiveMetrics,
@@ -979,36 +1072,47 @@ function getDashboardData() {
       lastUpdated: new Date().toISOString()
     };
   } catch (error) {
-    console.error('Error in getDashboardData:', error);
+    Logger.log('Error in getDashboardData: ' + error.message);
     throw new Error('Failed to load dashboard data: ' + error.toString());
   }
 }
 
 /**
  * Get all member data from Member Directory
+ * Uses dynamic column mapping - no hardcoded column count
  */
-function getMemberData(sheet) {
-  if (sheet.getLastRow() <= 1) return [];
+function getMemberData(sheet, M_COL) {
+  if (!sheet || sheet.getLastRow() <= 1) return [];
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 31).getValues();
-  return data.filter(row => row[0]); // Filter out empty rows
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // Filter by Member ID column (dynamic)
+  return data.filter(row => row[M_COL.MEMBER_ID]);
 }
 
 /**
  * Get all grievance data from Grievance Log
+ * Uses dynamic column mapping - no hardcoded column count
  */
-function getGrievanceData(sheet) {
-  if (sheet.getLastRow() <= 1) return [];
+function getGrievanceData(sheet, G_COL) {
+  if (!sheet || sheet.getLastRow() <= 1) return [];
 
-  const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 28).getValues();
-  return data.filter(row => row[0]); // Filter out empty rows
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // Filter by Grievance ID column (dynamic)
+  return data.filter(row => row[G_COL.GRIEVANCE_ID]);
 }
 
 /**
  * Calculate executive-level metrics
+ * Uses dynamic column mapping
  */
-function calculateExecutiveMetrics(grievances) {
-  const openGrievances = grievances.filter(g => g[4] === 'Open');
+function calculateExecutiveMetrics(grievances, G_COL) {
+  const openGrievances = grievances.filter(g => g[G_COL.STATUS] === 'Open');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -1018,17 +1122,16 @@ function calculateExecutiveMetrics(grievances) {
   let arbitrations = 0;
 
   openGrievances.forEach(g => {
-    const nextActionDue = g[19]; // Column T - Next Action Due
-    const currentStep = g[5]; // Column F - Current Step
-    const daysToDeadline = g[20]; // Column U - Days to Deadline
+    const currentStep = g[G_COL.CURRENT_STEP];
+    const daysToDeadline = g[G_COL.DAYS_TO_DEADLINE];
 
     // Count overdue
-    if (daysToDeadline < 0) {
+    if (typeof daysToDeadline === 'number' && daysToDeadline < 0) {
       overdue++;
     }
 
     // Count due this week
-    if (daysToDeadline >= 0 && daysToDeadline <= 7) {
+    if (typeof daysToDeadline === 'number' && daysToDeadline >= 0 && daysToDeadline <= 7) {
       dueThisWeek++;
     }
 
@@ -1042,15 +1145,15 @@ function calculateExecutiveMetrics(grievances) {
   });
 
   // Calculate win rate (settled + closed vs total resolved)
-  const resolved = grievances.filter(g => ['Settled', 'Closed', 'Withdrawn'].includes(g[4]));
-  const won = grievances.filter(g => g[4] === 'Settled').length;
+  const resolved = grievances.filter(g => ['Settled', 'Closed', 'Withdrawn'].includes(g[G_COL.STATUS]));
+  const won = grievances.filter(g => g[G_COL.STATUS] === 'Settled').length;
   const winRate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
 
   // Calculate average days to close for resolved cases
   let totalDays = 0;
   let countDays = 0;
   resolved.forEach(g => {
-    const daysOpen = g[18]; // Column S - Days Open
+    const daysOpen = g[G_COL.DAYS_OPEN];
     if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
       totalDays += daysOpen;
       countDays++;
@@ -1072,9 +1175,10 @@ function calculateExecutiveMetrics(grievances) {
 
 /**
  * Calculate member-related metrics
+ * Uses dynamic column mapping
  */
-function calculateMemberMetrics(members) {
-  const stewards = members.filter(m => m[9] === 'Yes').length; // Column J - Is Steward
+function calculateMemberMetrics(members, M_COL) {
+  const stewards = members.filter(m => m[M_COL.IS_STEWARD_Y_N] === 'Yes').length;
 
   // Calculate engagement (members with recent contact)
   const thirtyDaysAgo = new Date();
@@ -1082,9 +1186,9 @@ function calculateMemberMetrics(members) {
 
   let recentContacts = 0;
   members.forEach(m => {
-    const lastVirtual = m[13]; // Column N - Last Virtual Mtg
-    const lastInPerson = m[14]; // Column O - Last In-Person Mtg
-    const lastStewardContact = m[28]; // Column AC - Most Recent Steward Contact
+    const lastVirtual = m[M_COL.LAST_VIRTUAL_MTG_DATE];
+    const lastInPerson = m[M_COL.LAST_IN_PERSON_MTG_DATE];
+    const lastStewardContact = m[M_COL.MOST_RECENT_STEWARD_CONTACT_DATE];
 
     if ((lastVirtual && lastVirtual > thirtyDaysAgo) ||
         (lastInPerson && lastInPerson > thirtyDaysAgo) ||
@@ -1105,10 +1209,11 @@ function calculateMemberMetrics(members) {
 
 /**
  * Calculate grievance-related metrics
+ * Uses dynamic column mapping
  */
-function calculateGrievanceMetrics(grievances) {
-  const open = grievances.filter(g => g[4] === 'Open').length;
-  const pendingInfo = grievances.filter(g => g[4] === 'Pending Info').length;
+function calculateGrievanceMetrics(grievances, G_COL) {
+  const open = grievances.filter(g => g[G_COL.STATUS] === 'Open').length;
+  const pendingInfo = grievances.filter(g => g[G_COL.STATUS] === 'Pending Info').length;
 
   // Settled this month
   const firstOfMonth = new Date();
@@ -1116,16 +1221,16 @@ function calculateGrievanceMetrics(grievances) {
   firstOfMonth.setHours(0, 0, 0, 0);
 
   const settledThisMonth = grievances.filter(g => {
-    return g[4] === 'Settled' && g[17] && g[17] >= firstOfMonth; // Column R - Date Closed
+    return g[G_COL.STATUS] === 'Settled' && g[G_COL.DATE_CLOSED] && g[G_COL.DATE_CLOSED] >= firstOfMonth;
   }).length;
 
   // Average days open for open grievances
-  const openGrievances = grievances.filter(g => g[4] === 'Open');
+  const openGrievances = grievances.filter(g => g[G_COL.STATUS] === 'Open');
   let totalDays = 0;
   let countDays = 0;
 
   openGrievances.forEach(g => {
-    const daysOpen = g[18]; // Column S - Days Open
+    const daysOpen = g[G_COL.DAYS_OPEN];
     if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
       totalDays += daysOpen;
       countDays++;
@@ -1144,38 +1249,40 @@ function calculateGrievanceMetrics(grievances) {
 
 /**
  * Get top priority grievances (sorted by urgency)
+ * Uses dynamic column mapping
  */
-function getTopPriorityGrievances(grievances, limit = 10) {
-  const openGrievances = grievances.filter(g => g[4] === 'Open');
+function getTopPriorityGrievances(grievances, G_COL, limit = 10) {
+  const openGrievances = grievances.filter(g => g[G_COL.STATUS] === 'Open');
 
   // Sort by days to deadline (ascending, so overdue comes first)
   const sorted = openGrievances.sort((a, b) => {
-    const daysA = typeof a[20] === 'number' ? a[20] : 999;
-    const daysB = typeof b[20] === 'number' ? b[20] : 999;
+    const daysA = typeof a[G_COL.DAYS_TO_DEADLINE] === 'number' ? a[G_COL.DAYS_TO_DEADLINE] : 999;
+    const daysB = typeof b[G_COL.DAYS_TO_DEADLINE] === 'number' ? b[G_COL.DAYS_TO_DEADLINE] : 999;
     return daysA - daysB;
   });
 
   // Return top N
   return sorted.slice(0, limit).map(g => ({
-    id: g[0],                    // Grievance ID
-    member: g[2] + ' ' + g[3],   // First + Last Name
-    issue: g[22] || 'N/A',       // Issue Category
-    step: g[5] || 'N/A',         // Current Step
-    deadline: g[19] ? formatDate(g[19]) : 'N/A', // Next Action Due
-    daysToDeadline: typeof g[20] === 'number' ? g[20] : 0 // Days to Deadline
+    id: g[G_COL.GRIEVANCE_ID],
+    member: g[G_COL.FIRST_NAME] + ' ' + g[G_COL.LAST_NAME],
+    issue: g[G_COL.ISSUE_CATEGORY] || 'N/A',
+    step: g[G_COL.CURRENT_STEP] || 'N/A',
+    deadline: g[G_COL.NEXT_ACTION_DUE] ? formatDate(g[G_COL.NEXT_ACTION_DUE]) : 'N/A',
+    daysToDeadline: typeof g[G_COL.DAYS_TO_DEADLINE] === 'number' ? g[G_COL.DAYS_TO_DEADLINE] : 0
   }));
 }
 
 /**
  * Calculate steward workload distribution
+ * Uses dynamic column mapping
  */
-function calculateStewardWorkload(grievances) {
-  const openGrievances = grievances.filter(g => g[4] === 'Open');
+function calculateStewardWorkload(grievances, G_COL) {
+  const openGrievances = grievances.filter(g => g[G_COL.STATUS] === 'Open');
   const workload = {};
 
   // Count cases per steward
   openGrievances.forEach(g => {
-    const steward = g[26] || 'Unassigned'; // Column AA - Assigned Steward
+    const steward = g[G_COL.ASSIGNED_STEWARD_NAME] || 'Unassigned';
     if (!workload[steward]) {
       workload[steward] = {
         cases: 0,
@@ -1185,7 +1292,7 @@ function calculateStewardWorkload(grievances) {
     }
     workload[steward].cases++;
 
-    const daysOpen = g[18]; // Days Open
+    const daysOpen = g[G_COL.DAYS_OPEN];
     if (typeof daysOpen === 'number' && !isNaN(daysOpen)) {
       workload[steward].totalDays += daysOpen;
       workload[steward].count++;
@@ -1203,26 +1310,27 @@ function calculateStewardWorkload(grievances) {
 
 /**
  * Get upcoming deadlines within specified days
+ * Uses dynamic column mapping
  */
-function getUpcomingDeadlines(grievances, daysAhead = 14) {
-  const openGrievances = grievances.filter(g => g[4] === 'Open');
+function getUpcomingDeadlines(grievances, G_COL, daysAhead = 14) {
+  const openGrievances = grievances.filter(g => g[G_COL.STATUS] === 'Open');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const upcoming = openGrievances.filter(g => {
-    const daysToDeadline = g[20]; // Days to Deadline
+    const daysToDeadline = g[G_COL.DAYS_TO_DEADLINE];
     return typeof daysToDeadline === 'number' && daysToDeadline >= 0 && daysToDeadline <= daysAhead;
   });
 
   // Sort by days left
-  upcoming.sort((a, b) => a[20] - b[20]);
+  upcoming.sort((a, b) => a[G_COL.DAYS_TO_DEADLINE] - b[G_COL.DAYS_TO_DEADLINE]);
 
   return upcoming.map(g => ({
-    grievanceId: g[0],           // Grievance ID
-    member: g[2] + ' ' + g[3],   // First + Last Name
-    action: getNextActionType(g[5], g[19]), // What action is due
-    deadline: g[19] ? formatDate(g[19]) : 'N/A',
-    daysLeft: g[20]
+    grievanceId: g[G_COL.GRIEVANCE_ID],
+    member: g[G_COL.FIRST_NAME] + ' ' + g[G_COL.LAST_NAME],
+    action: getNextActionType(g[G_COL.CURRENT_STEP], g[G_COL.NEXT_ACTION_DUE]),
+    deadline: g[G_COL.NEXT_ACTION_DUE] ? formatDate(g[G_COL.NEXT_ACTION_DUE]) : 'N/A',
+    daysLeft: g[G_COL.DAYS_TO_DEADLINE]
   }));
 }
 
